@@ -1,0 +1,7 @@
+{
+    "name": "FloodRescue50.Editor",
+    "rootNamespace": "FloodRescue50",
+    "references": ["FloodRescue50.Runtime", "Unity.InputSystem", "Unity.TextMeshPro", "Unity.ugui"],
+    "includePlatforms": ["Editor"],
+    "autoReferenced": false
+}

@@ -2,6 +2,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using FloodRescue50.Core;
+using FloodRescue50.Player;
 
 namespace FloodRescue50.UI
 {
@@ -24,6 +25,10 @@ namespace FloodRescue50.UI
 
         [SerializeField]
         private TMP_Text timeText;
+
+        [SerializeField] private RescuerMovementController playerMovement;
+        [SerializeField] private PlayerRescueInteractor playerInteractor;
+        [SerializeField] private ThirdPersonCameraController playerCamera;
 
         private void Awake()
         {
@@ -54,6 +59,9 @@ namespace FloodRescue50.UI
         private void ShowResults(
             MissionResults results)
         {
+            if (playerMovement != null) playerMovement.enabled = false;
+            if (playerInteractor != null) playerInteractor.enabled = false;
+            if (playerCamera != null) playerCamera.enabled = false;
             if (resultsPanel != null)
             {
                 resultsPanel.SetActive(true);
@@ -106,15 +114,19 @@ namespace FloodRescue50.UI
 
         public void RetryMission()
         {
-            SceneManager.LoadScene(
-                SceneManager.GetActiveScene()
-                    .buildIndex);
+            string scenePath = SceneManager.GetActiveScene().path;
+            if (Application.CanStreamedLevelBeLoaded(scenePath))
+                SceneManager.LoadScene(scenePath);
+            else
+                Debug.LogWarning("Register FloodTown in the build scene list before retrying.", this);
         }
 
         public void LoadMainMenu()
         {
-            SceneManager.LoadScene(
-                "MainMenu");
+            if (Application.CanStreamedLevelBeLoaded("MainMenu"))
+                SceneManager.LoadScene("MainMenu");
+            else
+                Debug.LogWarning("Register MainMenu in the build scene list before returning to the menu.", this);
         }
     }
 }

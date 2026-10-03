@@ -15,6 +15,12 @@ namespace FloodRescue50.Player
 
         private RescuePointController currentTarget;
 
+        private void OnDisable()
+        {
+            currentTarget = null;
+            PromptChanged?.Invoke(string.Empty, false);
+        }
+
         public event Action<string, bool>
             PromptChanged;
 
