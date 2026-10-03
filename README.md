@@ -1,84 +1,105 @@
 # Flood Rescue 50
 
-Flood Rescue 50 is a youth-focused urban flood rescue exploration game built in Unity.
+A family-friendly, single-player urban flood rescue prototype set in the
+UK-inspired Riverside district. The vertical slice targets five rescue locations,
+a third-person rescuer, time-sensitive scoring, mission HUD, results and retry.
 
-Players take the role of emergency rescuers responding to flooding in a small town.
+## Milestone Status
 
-The objective is to explore and complete rescue operations at up to 50 points of interest.
+- Milestone 1: Core gameplay architecture implemented; Unity verification pending.
+- Milestone 2: Unity playable Riverside integration in progress.
+- Rodin import, prefab approval, Unity tests and an actual playtest are not complete.
 
-Players receive higher scores by:
+## Prerequisites
 
-- reaching rescue points quickly,
-- completing more rescue locations,
-- assisting victims,
-- coordinating efficiently with teammates.
+Unity Hub and a supported Unity Editor are required. No Editor version is pinned:
+this repository did not yet contain Packages or ProjectSettings.
+Install compatible Input System, TextMeshPro/Unity UI and Unity Test Framework
+packages through the chosen Editor's Package Manager. Do not guess versions.
 
-## Milestone 1
+Follow [the Unity setup guide](docs/MILESTONE_2_UNITY_SETUP.md) to create real
+project metadata, import packages, and let Unity generate .meta GUIDs.
 
-The first vertical slice contains:
+## Run Riverside
 
-- one Riverside district,
-- one playable rescuer,
-- five rescue points,
-- third-person movement,
-- rescue interactions,
-- a 15-minute mission timer,
-- time-based scoring,
-- mission completion,
-- a basic HUD,
-- automated scoring tests.
+After package setup and successful script compilation, import TMP Essential
+Resources and select **Flood Rescue 50 > Create Prototype Scenes** in the Editor.
+The builder prepares FloodTown, MainMenu, Boot, AssetReview and five POI data assets,
+using Unity's asset APIs. It refuses to overwrite existing scenes.
 
-The five prototype rescue points are:
+Open Assets/Game/Scenes/FloodTown.unity and enter Play Mode.
+Register Boot, MainMenu and FloodTown in the build/profile scene list to use
+Start Rescue, Retry and Main Menu. Place Boot first for a full startup flow.
 
-1. Flooded House
-2. Riverside Medical Clinic
-3. Corner Shop
-4. Bus Stop
-5. Electrical Substation
+If approved Rodin prefabs are absent, labelled primitive blockouts are used.
+These are provisional visuals, not imported or approved Rodin assets.
+The supplied AssetHyper JPGs are reference renders; no 3D exports were found.
 
-## Planned Technology
+## Controls
 
-### Game Engine
-Unity
+| Input | Action |
+| --- | --- |
+| WASD | Move |
+| Mouse | Third-person camera |
+| Left Shift | Sprint |
+| Space | Jump |
+| E | Start rescue |
 
-### Development
-OpenAI Codex
+Stay within the configured interaction range until rescue completes.
+Leaving range cancels the operation. Completed points score only once.
+The mission ends when all five points are complete or 15 minutes expire.
 
-### 3D Assets
-Hyper3D Rodin / Rodin MCP
+## Gameplay
 
-### Multiplayer and Cloud
-Tencent Cloud
+RescuePointData defines identity, victim counts, scoring and interaction values.
+RescuePointController emits lifecycle events; it does not control UI or storage.
+MissionManager validates configuration, awards score through ScoringService and
+publishes progress/results. MissionTimer supports explicit stepping for tests.
+World markers and HUD subscribe to gameplay events.
 
-### Future Systems
+The score remains baseScore + maxTimeBonus * (1 - clamped elapsed/duration):
+with defaults, completion at 0 / 450 / 900 seconds scores 400 / 250 / 100.
+ID-based awards prevent duplicate scoring; the original anonymous award method
+is retained for existing callers.
 
-- multiplayer rescue teams,
-- 50 rescue points,
-- changing flood conditions,
-- rescue boats,
-- vehicles,
-- player specialisations,
-- progression,
-- achievements,
-- leaderboards,
-- analytics.
+## Tests
 
-## Repository Structure
+Use Unity Test Runner to run both Edit Mode and Play Mode suites.
+Original scoring tests are retained. Added coverage includes score boundaries,
+deduplication, timer events/clamping, rescue transitions/cancellation,
+configuration validation and mission success/expiry.
+No Unity Test Runner pass is claimed until an Editor run is recorded.
+
+## Source Layout
 
 ```text
 Assets/Game/
-├── Art/
-├── Audio/
-├── Data/
-├── Materials/
-├── Prefabs/
-├── Scenes/
-├── Scripts/
-│   ├── Core/
-│   ├── Player/
-│   ├── Rescue/
-│   ├── Scoring/
-│   ├── UI/
-│   ├── Multiplayer/
-│   └── Tests/
-└── UI/
+  Art/Generated/Rodin/     Original models/textures; immutable source
+  Data/RescuePoints/       Unity-created ScriptableObject assets
+  Materials/Prototype/    Builder-created blockout materials
+  Prefabs/                Reviewed Environment, Props and Vehicles
+  Scenes/                 Unity-created scenes
+  Scripts/
+    Core/
+    Player/
+    Rescue/
+    Scoring/
+    UI/
+    Editor/               Scene setup command, excluded from player builds
+    Tests/                Edit Mode tests
+      PlayMode/           Coroutine and mission tests
+docs/
+  MILESTONE_2_UNITY_SETUP.md
+```
+
+Only scripts and documentation exist before the Editor setup command is run.
+Do not recreate ssets/. Keep game source under Assets/Game.
+Commit Unity-generated metadata with its assets, but never Library, Temp,
+Logs, obj, Build, Builds, UserSettings or secrets.
+
+## Scope
+
+No multiplayer, Tencent Cloud, runtime OpenAI APIs, Rodin MCP calls, asset
+regeneration, vehicle controls or dynamic flood simulation are included.
+The boat is visual-only. Keep gameplay roots separate from imported visual meshes.
+Future milestones are not implemented in this pass.
