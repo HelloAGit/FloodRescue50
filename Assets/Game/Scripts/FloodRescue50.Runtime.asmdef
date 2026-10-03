@@ -1,0 +1,6 @@
+{
+    "name": "FloodRescue50.Runtime",
+    "rootNamespace": "FloodRescue50",
+    "references": ["Unity.InputSystem", "Unity.TextMeshPro", "Unity.ugui"],
+    "autoReferenced": true
+}

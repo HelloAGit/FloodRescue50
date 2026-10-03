@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace FloodRescue50.Scoring
@@ -7,6 +8,8 @@ namespace FloodRescue50.Scoring
     {
         [SerializeField]
         private int maxTimeBonus = 300;
+
+        private readonly HashSet<string> scoredPoiIds = new HashSet<string>(StringComparer.Ordinal);
 
         public int TotalScore { get; private set; }
 
@@ -22,6 +25,7 @@ namespace FloodRescue50.Scoring
 
         public void ResetScore()
         {
+            scoredPoiIds.Clear();
             TotalScore = 0;
             CompletedPoints = 0;
             LatestPoiScore = 0;
@@ -58,13 +62,27 @@ namespace FloodRescue50.Scoring
             return earnedScore;
         }
 
+        public bool TryAwardPoiScore(string poiId, int baseScore, float elapsedTime,
+            float missionDuration, out int earnedScore)
+        {
+            earnedScore = 0;
+            if (string.IsNullOrWhiteSpace(poiId) || !scoredPoiIds.Add(poiId.Trim()))
+                return false;
+
+            earnedScore = AwardPoiScore(baseScore, elapsedTime, missionDuration);
+            Debug.Log($"Score awarded: {poiId}, {earnedScore} points.", this);
+            return true;
+        }
+
         public static int CalculatePoiScore(
             int baseScore,
             float elapsedTime,
             float missionDuration,
             int maxTimeBonus = 300)
         {
-            if (missionDuration <= 0f)
+            baseScore = Mathf.Max(0, baseScore);
+            maxTimeBonus = Mathf.Max(0, maxTimeBonus);
+            if (missionDuration <= 0f || float.IsNaN(missionDuration) || float.IsInfinity(missionDuration))
             {
                 return Mathf.Max(
                     0,
@@ -73,7 +91,7 @@ namespace FloodRescue50.Scoring
 
             float normalizedTime =
                 Mathf.Clamp01(
-                    elapsedTime /
+                    (float.IsNaN(elapsedTime) ? missionDuration : elapsedTime) /
                     missionDuration);
 
             float timeBonus =

@@ -15,6 +15,7 @@ namespace FloodRescue50.Rescue
 
         private SphereCollider discoveryCollider;
         private Coroutine interactionRoutine;
+        private bool interactionsAllowed = true;
 
         public RescuePointData Data => data;
 
@@ -31,6 +32,11 @@ namespace FloodRescue50.Rescue
 
         private void Awake()
         {
+            if (data == null)
+                Debug.LogWarning("Rescue point is missing RescuePointData; interaction is disabled.", this);
+            else
+                data.ValidateConfiguration();
+
             discoveryCollider = GetComponent<SphereCollider>();
 
             discoveryCollider.isTrigger = true;
@@ -69,7 +75,7 @@ namespace FloodRescue50.Rescue
 
         public void Discover()
         {
-            if (currentState != RescuePointState.Unknown)
+            if (!isActiveAndEnabled || !interactionsAllowed || data == null || currentState != RescuePointState.Unknown)
                 return;
 
             SetState(RescuePointState.Discovered);
@@ -77,10 +83,10 @@ namespace FloodRescue50.Rescue
 
         public bool CanInteractFrom(Vector3 playerPosition)
         {
-            if (data == null)
+            if (!isActiveAndEnabled || !interactionsAllowed || data == null)
                 return false;
 
-            if (currentState == RescuePointState.Completed)
+            if (currentState == RescuePointState.Completed || currentState == RescuePointState.Active)
                 return false;
 
             float distance =
@@ -91,7 +97,7 @@ namespace FloodRescue50.Rescue
 
         public bool TryBeginInteraction(GameObject interactor)
         {
-            if (interactor == null || data == null)
+            if (interactor == null || !interactor.activeInHierarchy || data == null)
                 return false;
 
             if (!CanInteractFrom(interactor.transform.position))
@@ -105,6 +111,10 @@ namespace FloodRescue50.Rescue
                 Discover();
             }
 
+            SetState(RescuePointState.Active);
+            if (!isActiveAndEnabled || !interactionsAllowed || currentState != RescuePointState.Active)
+                return false;
+
             interactionRoutine =
                 StartCoroutine(InteractionRoutine(interactor));
 
@@ -113,29 +123,44 @@ namespace FloodRescue50.Rescue
 
         public void CancelInteraction()
         {
-            if (interactionRoutine == null)
-                return;
-
-            StopCoroutine(interactionRoutine);
+            if (interactionRoutine != null)
+                StopCoroutine(interactionRoutine);
             interactionRoutine = null;
 
             if (currentState == RescuePointState.Active)
             {
                 SetState(RescuePointState.Discovered);
+                Debug.Log($"Rescue cancelled: {data?.poiId}.", this);
             }
+        }
+
+        private void OnDisable()
+        {
+            CancelInteraction();
+        }
+
+        public void SetInteractionsAllowed(bool allowed)
+        {
+            interactionsAllowed = allowed;
+            if (!allowed)
+                CancelInteraction();
         }
 
         private IEnumerator InteractionRoutine(
             GameObject interactor)
         {
-            SetState(RescuePointState.Active);
-
             float elapsed = 0f;
 
-            while (elapsed < data.interactionDuration)
+            float duration = data.interactionDuration;
+            while (elapsed < duration)
             {
-                if (interactor == null)
+                // Check range after yielding, including the final interaction frame.
+                yield return null;
+                if (!isActiveAndEnabled || !interactionsAllowed || currentState != RescuePointState.Active)
+                    yield break;
+                if (interactor == null || !interactor.activeInHierarchy || data == null)
                 {
+                    interactionRoutine = null;
                     CancelInteraction();
                     yield break;
                 }
@@ -146,13 +171,13 @@ namespace FloodRescue50.Rescue
 
                 if (distance > data.interactionRange)
                 {
+                    interactionRoutine = null;
                     CancelInteraction();
                     yield break;
                 }
 
                 elapsed += Time.deltaTime;
 
-                yield return null;
             }
 
             interactionRoutine = null;
@@ -176,6 +201,8 @@ namespace FloodRescue50.Rescue
                 return;
 
             currentState = newState;
+
+            Debug.Log($"POI {data?.poiId}: {currentState}.", this);
 
             StateChanged?.Invoke(this, currentState);
         }

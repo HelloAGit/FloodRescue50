@@ -8,118 +8,99 @@ namespace FloodRescue50.Core
 {
     public class MissionManager : MonoBehaviour
     {
-        [SerializeField]
-        private MissionTimer missionTimer;
+        [SerializeField] private MissionTimer missionTimer;
+        [SerializeField] private ScoringService scoringService;
+        [SerializeField] private List<RescuePointController> rescuePoints = new List<RescuePointController>();
 
-        [SerializeField]
-        private ScoringService scoringService;
-
-        [SerializeField]
-        private List<RescuePointController>
-            rescuePoints =
-                new List<RescuePointController>();
-
+        private readonly Dictionary<RescuePointController, string> configuredPoints =
+            new Dictionary<RescuePointController, string>();
+        private readonly HashSet<RescuePointController> completedPoints = new HashSet<RescuePointController>();
         private bool missionFinished;
 
-        public int TotalPoints =>
-            rescuePoints.Count;
-
-        public int CompletedPoints =>
-            scoringService != null
-                ? scoringService.CompletedPoints
-                : 0;
-
-        public event Action<
-            int,
-            int>
-            ProgressChanged;
-
-        public event Action<MissionResults>
-            MissionCompleted;
+        public int TotalPoints => configuredPoints.Count;
+        public int CompletedPoints => completedPoints.Count;
+        public event Action<int, int> ProgressChanged;
+        public event Action<MissionResults> MissionCompleted;
 
         private void Awake()
         {
-            foreach (
-                RescuePointController point
-                in rescuePoints)
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (RescuePointController point in rescuePoints)
             {
                 if (point == null)
+                {
+                    Debug.LogWarning("Mission configuration contains a missing rescue point; skipping it.", this);
                     continue;
-
-                point.Completed +=
-                    HandleRescuePointCompleted;
-            }
-
-            if (missionTimer != null)
-            {
-                missionTimer.MissionEnded +=
-                    HandleTimerEnded;
-            }
-        }
-
-        private void OnDestroy()
-        {
-            foreach (
-                RescuePointController point
-                in rescuePoints)
-            {
-                if (point == null)
+                }
+                if (configuredPoints.ContainsKey(point))
+                {
+                    Debug.LogWarning("Duplicate rescue point reference; counting it only once.", this);
                     continue;
+                }
+                if (point.Data == null)
+                {
+                    Debug.LogWarning("Mission point has no RescuePointData; skipping it.", point);
+                    point.SetInteractionsAllowed(false);
+                    continue;
+                }
 
-                point.Completed -=
-                    HandleRescuePointCompleted;
+                point.Data.ValidateConfiguration();
+                string id = point.Data.poiId?.Trim();
+                id = string.IsNullOrWhiteSpace(id) ? "point:" + point.GetInstanceID() : "poi:" + id;
+                if (!ids.Add(id))
+                {
+                    Debug.LogWarning($"Duplicate POI ID {point.Data.poiId}; disabling the duplicate point.", point);
+                    point.SetInteractionsAllowed(false);
+                    continue;
+                }
+                configuredPoints.Add(point, id);
+                point.Completed += HandleRescuePointCompleted;
             }
-
             if (missionTimer != null)
-            {
-                missionTimer.MissionEnded -=
-                    HandleTimerEnded;
-            }
+                missionTimer.MissionEnded += HandleTimerEnded;
         }
 
         private void Start()
         {
-            if (scoringService != null)
+            if (scoringService == null || missionTimer == null)
             {
-                scoringService.ResetScore();
-            }
-
-            ProgressChanged?.Invoke(
-                CompletedPoints,
-                TotalPoints);
-        }
-
-        private void
-            HandleRescuePointCompleted(
-                RescuePointController point)
-        {
-            if (missionFinished ||
-                point == null ||
-                scoringService == null ||
-                missionTimer == null)
-            {
+                Debug.LogWarning("Mission requires MissionTimer and ScoringService; gameplay is disabled.", this);
+                foreach (RescuePointController point in configuredPoints.Keys)
+                    point.SetInteractionsAllowed(false);
+                if (missionTimer != null) missionTimer.StopMission();
                 return;
             }
+            if (TotalPoints == 0)
+                Debug.LogWarning("Mission has zero valid rescue points; it will end only when the timer expires.", this);
+            scoringService.ResetScore();
+            ProgressChanged?.Invoke(CompletedPoints, TotalPoints);
+            missionTimer.StartMission();
+        }
 
-            int baseScore =
-                point.Data != null
-                    ? point.Data.baseScore
-                    : 100;
+        private void OnDestroy()
+        {
+            foreach (RescuePointController point in configuredPoints.Keys)
+                if (point != null)
+                    point.Completed -= HandleRescuePointCompleted;
+            if (missionTimer != null)
+                missionTimer.MissionEnded -= HandleTimerEnded;
+        }
 
-            scoringService.AwardPoiScore(
-                baseScore,
-                missionTimer.ElapsedTime,
-                missionTimer.MissionDuration);
+        private void HandleRescuePointCompleted(RescuePointController point)
+        {
+            if (missionFinished || point == null || !point.IsCompleted ||
+                scoringService == null || missionTimer == null || !missionTimer.IsRunning ||
+                !configuredPoints.TryGetValue(point, out string id) || completedPoints.Contains(point))
+                return;
 
-            ProgressChanged?.Invoke(
-                CompletedPoints,
-                TotalPoints);
-
-            if (CompletedPoints >=
-                TotalPoints)
-            {
+            // Capture identity at setup, independent of scene names or later data edits.
+            if (!scoringService.TryAwardPoiScore(id, point.Data.baseScore,
+                missionTimer.ElapsedTime, missionTimer.MissionDuration, out _))
+                return;
+            completedPoints.Add(point);
+            ProgressChanged?.Invoke(CompletedPoints, TotalPoints);
+            if (TotalPoints > 0 && CompletedPoints == TotalPoints)
                 FinishMission(true);
-            }
         }
 
         private void HandleTimerEnded()
@@ -127,33 +108,19 @@ namespace FloodRescue50.Core
             FinishMission(false);
         }
 
-        private void FinishMission(
-            bool allPointsCompleted)
+        private void FinishMission(bool allPointsCompleted)
         {
-            if (missionFinished)
-                return;
-
+            if (missionFinished) return;
             missionFinished = true;
-
-            if (missionTimer != null)
-            {
-                missionTimer.StopMission();
-            }
-
-            MissionResults results =
-                new MissionResults(
-                    scoringService != null
-                        ? scoringService.TotalScore
-                        : 0,
-                    CompletedPoints,
-                    TotalPoints,
-                    missionTimer != null
-                        ? missionTimer.ElapsedTime
-                        : 0f,
-                    allPointsCompleted);
-
-            MissionCompleted?.Invoke(
-                results);
+            if (missionTimer != null) missionTimer.StopMission();
+            foreach (RescuePointController point in configuredPoints.Keys)
+                if (point != null)
+                    point.SetInteractionsAllowed(false);
+            var results = new MissionResults(scoringService != null ? scoringService.TotalScore : 0,
+                CompletedPoints, TotalPoints, missionTimer != null ? missionTimer.ElapsedTime : 0f,
+                allPointsCompleted);
+            Debug.Log(allPointsCompleted ? "Mission completed: all rescue points cleared." : "Mission ended: time expired.", this);
+            MissionCompleted?.Invoke(results);
         }
     }
 }
