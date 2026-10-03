@@ -1,0 +1,7 @@
+{
+    "name": "FloodRescue50.PlayMode.Tests",
+    "rootNamespace": "FloodRescue50.Tests",
+    "references": ["FloodRescue50.Runtime"],
+    "optionalUnityReferences": ["TestAssemblies"],
+    "autoReferenced": false
+}

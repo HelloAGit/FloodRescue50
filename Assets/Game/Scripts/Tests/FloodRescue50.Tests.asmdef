@@ -1,0 +1,8 @@
+{
+    "name": "FloodRescue50.Tests",
+    "rootNamespace": "FloodRescue50.Tests",
+    "references": ["FloodRescue50.Runtime"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"],
+    "autoReferenced": false
+}
